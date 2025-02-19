@@ -13,13 +13,12 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
 
-
 @Slf4j
 @RestController
 @RequestMapping("/file")
 public class FileController {
 
-    private static final String UPLOAD_DIR = "C:\\Users\\ADMIN\\Whisper\\";
+    private static final String UPLOAD_DIR = "/app/uploads/"; // Đảm bảo đường dẫn phù hợp với Linux
 
     @PostMapping("/cut")
     public ResponseEntity<byte[]> cutVideo(@RequestParam("file") MultipartFile file) throws IOException, InterruptedException {
@@ -39,12 +38,14 @@ public class FileController {
         String outputFileName = "cut_" + UUID.randomUUID() + ".mp4";
         File outputFile = new File(UPLOAD_DIR + outputFileName);
 
-        // Lệnh FFmpeg để cắt video từ giây 2 đến giây 5 (3 giây)
-        String cutCmd = String.format("ffmpeg -i \"%s\" -ss 2 -t 100 -c copy \"%s\"",
+        // Lệnh FFmpeg để cắt video
+        String cutCmd = String.format("ffmpeg -i '%s' -ss 2 -t 100 -c copy '%s'",
                 tempInputFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
-        // Chạy lệnh FFmpeg
-        Process cutProcess = Runtime.getRuntime().exec(new String[]{"cmd", "/c", cutCmd});
+        // Chạy lệnh FFmpeg trên Linux
+        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c", cutCmd);
+        processBuilder.redirectErrorStream(true);
+        Process cutProcess = processBuilder.start();
         cutProcess.waitFor();
 
         // Xóa file tạm sau khi cắt xong
@@ -58,7 +59,6 @@ public class FileController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(videoBytes);
     }
-
 
     @PostMapping("/merge")
     public ResponseEntity<byte[]> mergeVideos(@RequestParam("files") List<MultipartFile> files) throws IOException, InterruptedException {
@@ -76,7 +76,7 @@ public class FileController {
             for (MultipartFile file : files) {
                 File tempFile = File.createTempFile("temp_", ".mp4");
                 file.transferTo(tempFile);
-                writer.write("file '" + tempFile.getAbsolutePath().replace("\\", "/") + "'\n");
+                writer.write("file '" + tempFile.getAbsolutePath() + "'\n");
             }
         }
 
@@ -85,30 +85,28 @@ public class FileController {
         File outputFile = new File(UPLOAD_DIR, outputFileName);
 
         // Lệnh FFmpeg để ghép video
-        String mergeCmd = String.format("ffmpeg -f concat -safe 0 -i \"%s\" -c copy \"%s\"",
+        String mergeCmd = String.format("ffmpeg -f concat -safe 0 -i '%s' -c copy '%s'",
                 tempListFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
-        // Chạy lệnh FFmpeg
-        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "/c", mergeCmd);
+        // Chạy lệnh FFmpeg trên Linux
+        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c", mergeCmd);
         processBuilder.redirectErrorStream(true);
         Process mergeProcess = processBuilder.start();
 
-        // Đọc và ghi log nếu cần
+        // Đọc log FFmpeg
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(mergeProcess.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                System.out.println(line); // Log the FFmpeg output
+                log.info(line);
             }
         }
 
-
-        // Xóa file tạm
+        mergeProcess.waitFor();
         tempListFile.delete();
 
         // Đọc file output và trả về
         byte[] videoBytes = FileUtils.readFileToByteArray(outputFile);
 
-        // Trả về video đã ghép
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + outputFileName)
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
