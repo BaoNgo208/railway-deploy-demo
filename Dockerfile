@@ -8,7 +8,8 @@ RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 # Sao chép file JAR của ứng dụng vào container
-COPY target/myapp.jar app.jar
+COPY target/java_intern-0.0.1-SNAPSHOT.jar app.jar
+
 
 # Chạy ứng dụng Spring Boot
 ENTRYPOINT ["java", "-jar", "app.jar"]
