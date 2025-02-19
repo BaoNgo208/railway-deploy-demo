@@ -7,12 +7,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.bytedeco.ffmpeg.global.avcodec;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
-
 
 
 @Slf4j
@@ -20,59 +21,59 @@ import java.util.UUID;
 @RequestMapping("/file")
 public class FileController {
 
-    private static final String UPLOAD_DIR = "/tmp/uploads/"; // Đảm bảo đường dẫn phù hợp với Linux
+    private static final String UPLOAD_DIR = "/tmp/uploads/";
 
     @PostMapping("/cut")
-    public ResponseEntity<byte[]> cutVideo(@RequestParam("file") MultipartFile file) throws IOException, InterruptedException {
+    public ResponseEntity<byte[]> cutVideo(@RequestParam("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("File is empty!".getBytes());
         }
-
-        ProcessBuilder checkFfmpeg = new ProcessBuilder("sh", "-c", "command -v ffmpeg");
-        checkFfmpeg.redirectErrorStream(true);
-        Process process = checkFfmpeg.start();
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String ffmpegPath = reader.readLine();
-        if (ffmpegPath == null || ffmpegPath.isEmpty()) {
-            throw new IOException("FFmpeg is not installed!");
-        } else {
-            System.out.println("FFmpeg found at: " + ffmpegPath);
-        }
-
-        // Tạo file tạm để lưu dữ liệu đầu vào
-        File tempInputFile = File.createTempFile("temp_", ".mp4");
-        file.transferTo(tempInputFile);
 
         // Đảm bảo thư mục output tồn tại
         File uploadDir = new File(UPLOAD_DIR);
         if (!uploadDir.exists()) uploadDir.mkdirs();
 
-        // Tạo file output trong thư mục cố định
-        String outputFileName = "cut_" + UUID.randomUUID() + ".mp4";
-        File outputFile = new File(UPLOAD_DIR + outputFileName);
+        // Tạo file tạm
+        String inputFileName = UPLOAD_DIR + "temp_" + UUID.randomUUID() + ".mp4";
+        File inputFile = new File(inputFileName);
+        file.transferTo(inputFile);
 
-        // Lệnh FFmpeg để cắt video
-        String cutCmd = String.format("ffmpeg -i '%s' -ss 2 -t 100 -c copy '%s'",
-                tempInputFile.getAbsolutePath(), outputFile.getAbsolutePath());
+        // Tạo file output
+        String outputFileName = UPLOAD_DIR + "cut_" + UUID.randomUUID() + ".mp4";
+        File outputFile = new File(outputFileName);
 
-        // Chạy lệnh FFmpeg trên Linux
-        ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", cutCmd);
-        processBuilder.redirectErrorStream(true);
-        Process cutProcess = processBuilder.start();
-        cutProcess.waitFor();
+        // Cắt video bằng FFmpegFrameGrabber & FFmpegFrameRecorder
+        try (FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(inputFile);
+             FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(outputFile, grabber.getImageWidth(), grabber.getImageHeight())) {
 
-        // Xóa file tạm sau khi cắt xong
-        tempInputFile.delete();
+            grabber.start();
+            recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
+            recorder.setFormat("mp4");
+            recorder.setFrameRate(grabber.getFrameRate());
 
-        // Đọc file output và trả về
+            // Bỏ qua 2s đầu
+            grabber.setTimestamp(2000000);
+
+            long endTimestamp = grabber.getTimestamp() + 10_000_000; // Cắt 10s
+            while (grabber.getTimestamp() < endTimestamp) {
+                recorder.record(grabber.grabFrame());
+            }
+
+            recorder.stop();
+            grabber.stop();
+        }
+
+        // Xóa file input sau khi xử lý
+        inputFile.delete();
+
+        // Trả về file đã cắt
         byte[] videoBytes = FileUtils.readFileToByteArray(outputFile);
-
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + outputFileName)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + outputFile.getName())
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(videoBytes);
     }
+
 
     @PostMapping("/merge")
     public ResponseEntity<byte[]> mergeVideos(@RequestParam("files") List<MultipartFile> files) throws IOException, InterruptedException {
@@ -90,7 +91,7 @@ public class FileController {
             for (MultipartFile file : files) {
                 File tempFile = File.createTempFile("temp_", ".mp4");
                 file.transferTo(tempFile);
-                writer.write("file '" + tempFile.getAbsolutePath() + "'\n");
+                writer.write("file '" + tempFile.getAbsolutePath().replace("\\", "/") + "'\n");
             }
         }
 
@@ -99,28 +100,30 @@ public class FileController {
         File outputFile = new File(UPLOAD_DIR, outputFileName);
 
         // Lệnh FFmpeg để ghép video
-        String mergeCmd = String.format("ffmpeg -f concat -safe 0 -i '%s' -c copy '%s'",
+        String mergeCmd = String.format("ffmpeg -f concat -safe 0 -i \"%s\" -c copy \"%s\"",
                 tempListFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
-        // Chạy lệnh FFmpeg trên Linux
-        ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", mergeCmd);
+        // Chạy lệnh FFmpeg
+        ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", mergeCmd);
         processBuilder.redirectErrorStream(true);
         Process mergeProcess = processBuilder.start();
 
-        // Đọc log FFmpeg
+        // Đọc và ghi log nếu cần
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(mergeProcess.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                log.info(line);
+                System.out.println(line); // Log the FFmpeg output
             }
         }
 
-        mergeProcess.waitFor();
+
+        // Xóa file tạm
         tempListFile.delete();
 
         // Đọc file output và trả về
         byte[] videoBytes = FileUtils.readFileToByteArray(outputFile);
 
+        // Trả về video đã ghép
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + outputFileName)
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
