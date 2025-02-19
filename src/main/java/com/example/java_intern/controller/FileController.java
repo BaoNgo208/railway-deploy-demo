@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequestMapping("/file")
 public class FileController {
 
-    private static final String UPLOAD_DIR = "/tmp/uploads/";
+    private static final String UPLOAD_DIR = "C:\\Users\\ADMIN\\Whisper";
 
     @PostMapping("/cut")
     public ResponseEntity<byte[]> cutVideo(@RequestParam("file") MultipartFile file) throws IOException {
@@ -85,7 +85,6 @@ public class FileController {
         File uploadDir = new File(UPLOAD_DIR);
         if (!uploadDir.exists()) uploadDir.mkdirs();
 
-        // Tạo danh sách file tạm để lưu video đầu vào
         File tempListFile = File.createTempFile("file_list", ".txt");
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempListFile))) {
             for (MultipartFile file : files) {
