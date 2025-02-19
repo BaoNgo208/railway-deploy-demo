@@ -13,12 +13,14 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
 
+
+
 @Slf4j
 @RestController
 @RequestMapping("/file")
 public class FileController {
 
-    private static final String UPLOAD_DIR = "/app/uploads/"; // Đảm bảo đường dẫn phù hợp với Linux
+    private static final String UPLOAD_DIR = "/tmp/uploads/"; // Đảm bảo đường dẫn phù hợp với Linux
 
     @PostMapping("/cut")
     public ResponseEntity<byte[]> cutVideo(@RequestParam("file") MultipartFile file) throws IOException, InterruptedException {
