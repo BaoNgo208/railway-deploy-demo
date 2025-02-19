@@ -26,7 +26,7 @@ public class FileController {
             return ResponseEntity.badRequest().body("File is empty!".getBytes());
         }
 
-        ProcessBuilder checkFfmpeg = new ProcessBuilder("which", "ffmpeg");
+        ProcessBuilder checkFfmpeg = new ProcessBuilder("/bin/sh", "-c", "command -v ffmpeg");
         checkFfmpeg.redirectErrorStream(true);
         Process process = checkFfmpeg.start();
 
