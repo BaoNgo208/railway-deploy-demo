@@ -26,6 +26,18 @@ public class FileController {
             return ResponseEntity.badRequest().body("File is empty!".getBytes());
         }
 
+        ProcessBuilder checkFfmpeg = new ProcessBuilder("which", "ffmpeg");
+        checkFfmpeg.redirectErrorStream(true);
+        Process process = checkFfmpeg.start();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        String ffmpegPath = reader.readLine();
+        if (ffmpegPath == null || ffmpegPath.isEmpty()) {
+            throw new IOException("FFmpeg is not installed!");
+        } else {
+            System.out.println("FFmpeg found at: " + ffmpegPath);
+        }
+
         // Tạo file tạm để lưu dữ liệu đầu vào
         File tempInputFile = File.createTempFile("temp_", ".mp4");
         file.transferTo(tempInputFile);
