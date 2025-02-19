@@ -43,7 +43,7 @@ public class FileController {
                 tempInputFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
         // Chạy lệnh FFmpeg trên Linux
-        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c", cutCmd);
+        ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", cutCmd);
         processBuilder.redirectErrorStream(true);
         Process cutProcess = processBuilder.start();
         cutProcess.waitFor();
@@ -89,7 +89,7 @@ public class FileController {
                 tempListFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
         // Chạy lệnh FFmpeg trên Linux
-        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c", mergeCmd);
+        ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", mergeCmd);
         processBuilder.redirectErrorStream(true);
         Process mergeProcess = processBuilder.start();
 
