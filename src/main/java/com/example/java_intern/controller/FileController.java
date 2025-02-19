@@ -89,7 +89,7 @@ public class FileController {
                 tempListFile.getAbsolutePath(), outputFile.getAbsolutePath());
 
         // Chạy lệnh FFmpeg
-        ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", mergeCmd);
+        ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "/c", mergeCmd);
         processBuilder.redirectErrorStream(true);
         Process mergeProcess = processBuilder.start();
 
