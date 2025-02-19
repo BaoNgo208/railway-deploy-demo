@@ -1,0 +1,12 @@
+server:
+  port: 8888
+  address: 0.0.0.0
+  servlet:
+    context-path: /java_intern
+
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 900MB
+      max-request-size: 900MB
